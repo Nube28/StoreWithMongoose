@@ -1,6 +1,14 @@
 import express from 'express';
 import { AppError, globlaErrorHandler} from './utils/appError.js';
 import morgan from 'morgan';
+import corsMiddleware from './utils/validateCORS.js';
+import jwt from 'jsonwebtoken';
+import { conectar } from './config/db.js';
+import productoRouter from './routers/productoRouter.js';
+import ventaRouter from './routers/ventaRouter.js';
+import validateJWT from "./utils/validateJWT.js";
+
+conectar();
 
 const app = express();
 //Middleware para analizar los datos del cuerpo de las solicitudes en formato JSON
@@ -9,7 +17,36 @@ app.use(express.json());
 //Configurar el middleware de morgan para el registro de solicitudes en consola
 app.use(morgan('combined'));
 
+app.use(corsMiddleware);
+
+app.post('/api/users/login', (req, res, next) => {
+    const { username, password } = req.body;
+
+    if (username === 'admin' && password === 'password'){
+        const payload = {
+            userId: 1,
+            username: 'admin',
+            role: 'admin',
+        };
+
+        const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: '1h'});
+
+        res.json({
+            msg: 'Se inicio sesion con exito',
+            token,
+        });
+
+    } else {
+        next(new AppError('Usuario o Contraseña invalidos', 401))
+    }
+});
+
+//a nivel de api significa que todas las cosas que se hagan por aqui deben estar validadaas
+//app.use(validateJWT);
+
 //Middleware para exponer mis rutas y puedan ser accedidas
+app.use('/api/productos', validateJWT, productoRouter);
+app.use('/api/ventas', ventaRouter);
 
 
 app.use((req,res,next)=>{
